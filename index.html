@@ -1,0 +1,340 @@
+<!doctype html>
+
+<html lang="bn">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Unique Calculator — এক ফাইলে (Standard + Scientific + History + Themes)</title>
+  <style>
+    :root{
+      --bg:#0b1220; --panel:#0f1724; --muted:#94a3b8; --accent:#7c3aed; --accent-2:#06b6d4; --glass: rgba(255,255,255,0.04);
+      --btn-radius:12px;
+      font-family:Inter, 'Segoe UI', Roboto, Arial, sans-serif;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg),#071124);color:#e6eef8}
+    .wrap{max-width:980px;margin:28px auto;padding:18px;display:grid;grid-template-columns:1fr 380px;gap:18px}
+    .card{background:linear-gradient(180deg,var(--panel), rgba(255,255,255,0.02));padding:16px;border-radius:14px;box-shadow:0 10px 30px rgba(2,6,23,0.6)}/* Calculator area */
+.calc{display:flex;flex-direction:column;height:520px}
+.display{height:120px;padding:12px;border-radius:10px;background:var(--glass);display:flex;flex-direction:column;justify-content:center;align-items:flex-end;gap:6px}
+.expr{font-size:18px;color:var(--muted);word-break:break-all}
+.result{font-size:32px;font-weight:700}
+
+.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
+button.key{padding:14px;border-radius:10px;border:0;background:rgba(255,255,255,0.04);color:inherit;font-weight:600;cursor:pointer;box-shadow:inset 0 -2px 0 rgba(0,0,0,0.25)}
+button.key.fw{grid-column:span 2}
+button.key.accent{background:linear-gradient(180deg,var(--accent),#5b21b6);color:white}
+button.key.func{background:rgba(255,255,255,0.02);color:var(--muted)}
+
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.toolbar select, .toolbar .small-btn{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:10px;color:var(--muted)}
+.small-btn{cursor:pointer}
+
+/* side panel */
+.side{display:flex;flex-direction:column;gap:12px}
+.history{max-height:300px;overflow:auto;padding:8px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent)}
+.hist-item{padding:8px;border-bottom:1px dashed rgba(255,255,255,0.03);display:flex;justify-content:space-between;gap:8px}
+.hist-expr{color:var(--muted);font-size:13px}
+.hist-res{font-weight:700}
+
+.footer-hint{font-size:13px;color:var(--muted)}
+
+/* responsive */
+@media (max-width:980px){.wrap{grid-template-columns:1fr} .side{order:2}}
+
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card calc">
+      <div class="toolbar">
+        <select id="mode">
+          <option value="standard">Standard</option>
+          <option value="scientific">Scientific</option>
+        </select>
+        <button class="small-btn" id="themeBtn">Theme</button>
+        <button class="small-btn" id="clearAll">Clear</button>
+        <button class="small-btn" id="undoBtn">Undo</button>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <button class="small-btn" id="copyRes">Copy</button>
+          <button class="small-btn" id="downloadPNG">Save Image</button>
+        </div>
+      </div><div class="display" id="display">
+    <div class="expr" id="expr">0</div>
+    <div class="result" id="result">0</div>
+  </div>
+
+  <div id="keysContainer">
+    <div class="keys" id="keys">
+      <!-- keys injected by JS -->
+    </div>
+  </div>
+
+  <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+    <input id="quickInput" placeholder="Type expression and press Enter" style="flex:1;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit" />
+    <button class="small-btn" id="evalBtn">=</button>
+  </div>
+
+  <div style="margin-top:auto;display:flex;justify-content:space-between;align-items:center">
+    <div class="footer-hint">Unique Calculator — expressions allowed: + - * / ^ ( ) , functions: sin,cos,tan,asin,acos,atan,sqrt,log,ln,abs,exp,pow,pi</div>
+    <div class="footer-hint">Memory: M+, M-, MR</div>
+  </div>
+</div>
+
+<div class="card side">
+  <div>
+    <strong>History</strong>
+    <div class="history" id="history"></div>
+  </div>
+
+  <div>
+    <strong>Memory</strong>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="small-btn" id="mAdd">M+</button>
+      <button class="small-btn" id="mSub">M-</button>
+      <button class="small-btn" id="mRecall">MR</button>
+      <button class="small-btn" id="mClear">MC</button>
+    </div>
+  </div>
+
+  <div style="margin-top:8px">
+    <strong>Settings</strong>
+    <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">
+      <label style="font-size:13px;color:var(--muted)">Precision
+        <select id="precision">
+          <option>12</option>
+          <option>8</option>
+          <option>6</option>
+          <option>4</option>
+        </select>
+      </label>
+      <label style="font-size:13px;color:var(--muted)">Angle mode
+        <select id="angleMode">
+          <option value="rad">Radians</option>
+          <option value="deg">Degrees</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+</div>
+
+  </div>  <script>
+    // -----------------------
+    // Core behavior & UI
+    // -----------------------
+    const keysEl = document.getElementById('keys');
+    const exprEl = document.getElementById('expr');
+    const resultEl = document.getElementById('result');
+    const historyEl = document.getElementById('history');
+    const quickInput = document.getElementById('quickInput');
+    const modeSel = document.getElementById('mode');
+    const precisionSel = document.getElementById('precision');
+    const angleModeSel = document.getElementById('angleMode');
+
+    // state
+    let expression = '';
+    let memory = 0;
+    let history = JSON.parse(localStorage.getItem('uniqueCalc_history') || '[]');
+    let theme = 0;
+
+    // key definitions for standard and scientific
+    const standardKeys = [
+      {t:'(',v:'('},{t:')',v:')'},{t:'CE',v:'CE',cls:'func'},{t:'C',v:'C',cls:'func'},
+      {t:'7',v:'7'},{t:'8',v:'8'},{t:'9',v:'9'},{t:'÷',v:'/'} ,
+      {t:'4',v:'4'},{t:'5',v:'5'},{t:'6',v:'6'},{t:'×',v:'*'},
+      {t:'1',v:'1'},{t:'2',v:'2'},{t:'3',v:'3'},{t:'-',v:'-'},
+      {t:'0',v:'0'},{t:'.',v:'.'},{t:'=',v:'=',cls:'accent fw'},{t:'+',v:'+'}
+    ];
+
+    const scientificExtras = [
+      {t:'sin',v:'sin('},{t:'cos',v:'cos('},{t:'tan',v:'tan('},{t:'√',v:'sqrt('},
+      {t:'log',v:'log('},{t:'ln',v:'ln('},{t:'^',v:'^'},{t:'π',v:'pi'}
+    ];
+
+    function renderKeys(){
+      keysEl.innerHTML = '';
+      const keysToShow = (modeSel.value === 'standard') ? standardKeys : (scientificExtras.concat(standardKeys));
+      keysToShow.forEach(k=>{
+        const btn = document.createElement('button');
+        btn.className = 'key' + (k.cls?(' '+k.cls):'');
+        btn.textContent = k.t;
+        btn.dataset.val = k.v;
+        btn.addEventListener('click', ()=> onKey(k.v));
+        keysEl.appendChild(btn);
+      });
+    }
+
+    function setExpr(v){
+      expression = v;
+      exprEl.textContent = v || '0';
+    }
+
+    function pushExpr(s){
+      if(s === 'C'){ setExpr(''); resultEl.textContent = '0'; return; }
+      if(s === 'CE'){ setExpr(expression.slice(0,-1)); return; }
+      if(s === '='){ evaluateExpression(); return; }
+      setExpr(expression + s);
+    }
+
+    function onKey(v){
+      if(v === '='){ evaluateExpression(); return; }
+      pushExpr(v);
+    }
+
+    // -----------------------
+    // Expression evaluation
+    // -----------------------
+    // Map calculator-style input to safe JS expressions
+    function prepareExpression(input){
+      let expr = (input || '').replace(/×/g,'*').replace(/÷/g,'/');
+      // replace pow-like ^ with **
+      expr = expr.replace(/\^/g,'**');
+
+      // function replacements (word boundaries)
+      const repl = {
+        'pi': 'Math.PI',
+        'sin': 'Math.sin', 'cos':'Math.cos','tan':'Math.tan',
+        'asin':'Math.asin','acos':'Math.acos','atan':'Math.atan',
+        'sqrt':'Math.sqrt','abs':'Math.abs','exp':'Math.exp',
+        'ln':'Math.log','log':'Math.log10', // log -> base10
+        'pow':'Math.pow'
+      };
+      for(const k in repl){
+        const rg = new RegExp('\\b'+k+'\\b','gi');
+        expr = expr.replace(rg, repl[k]);
+      }
+
+      // angle mode: if degree selected, wrap trig calls
+      if(angleModeSel.value === 'deg'){
+        // replace Math.sin( ... ) -> Math.sin((...)*Math.PI/180)
+        expr = expr.replace(/Math\.(sin|cos|tan|asin|acos|atan)\s*/g, (m,fn)=>{
+          if(['asin','acos','atan'].includes(fn)){
+            // inverse trig: convert result from rad->deg after call -> handled later
+            return `Math.${fn}(`; // keep, we'll convert result outside
+          }
+          return `Math.${fn}((`;
+        });
+        // after opening an extra paren, we need to find corresponding closing paren and multiply by Math.PI/180.
+        // Simple approach: replace patterns like Math.sin((...)) with Math.sin((...)*Math.PI/180)
+        expr = expr.replace(/Math\.(sin|cos|tan)\(\(([^]*)\)\)/g, 'Math.$1(($2)*Math.PI/180)');
+        // also for single paren case Math.sin(x)
+        expr = expr.replace(/Math\.(sin|cos|tan)([^]*)\)/g, 'Math.$1(($2)*Math.PI/180)');
+      }
+
+      // After replacements, ensure expression contains only allowed characters: digits, operators, parentheses, Math, letters used in replaced tokens, dot, spaces, * + - / % , e
+      // We'll reject if any alpha characters remain (to prevent arbitrary code). Allowed 'Math' stays.
+      // Remove 'Math' occurrences temporarily
+      const tmp = expr.replace(/Math/g, '');
+      if(/[A-Za-z]/.test(tmp)){
+        throw new Error('অবৈধ ক্যালকুলেশন — অনুমোদিত ফাংশন/চিহ্ন ব্যবহার করুন');
+      }
+
+      return expr;
+    }
+
+    function evaluateExpression(){
+      if(!expression) return;
+      try{
+        const expr = prepareExpression(expression);
+        // eslint-disable-next-line no-new-func
+        const val = Function('return ('+expr+')')();
+        if(typeof val === 'number' && isFinite(val)){
+          const precision = parseInt(precisionSel.value,10) || 12;
+          // if inverse trig and degrees mode selected, convert rad->deg for asin/acos/atan results: user expects degrees if they chose deg
+          let out = val;
+          // Round
+          const rounded = Number(out.toPrecision(precision));
+          resultEl.textContent = String(rounded);
+          addHistory(expression, rounded);
+          return rounded;
+        } else {
+          resultEl.textContent = 'Error';
+        }
+      } catch(e){
+        resultEl.textContent = 'Err';
+        console.warn(e);
+      }
+    }
+
+    // -----------------------
+    // History & Memory
+    // -----------------------
+    function addHistory(expr, res){
+      const item = {expr, res, t: Date.now()};
+      history.unshift(item);
+      history = history.slice(0,50);
+      localStorage.setItem('uniqueCalc_history', JSON.stringify(history));
+      renderHistory();
+    }
+
+    function renderHistory(){
+      historyEl.innerHTML = history.map(h=>{
+        const div = document.createElement('div');
+        div.className = 'hist-item';
+        div.innerHTML = `<div style=\"min-width:0\"><div class=\"hist-expr\">${escapeHtml(h.expr)}</div><div class=\"hist-res\">${h.res}</div></div><div><button class=\"small-btn\">Use</button></div>`;
+        const btn = div.querySelector('button');
+        btn.addEventListener('click', ()=>{ setExpr(h.expr); resultEl.textContent = h.res; });
+        return div;
+      }).reduce((frag,el)=>{frag.appendChild(el); return frag}, document.createDocumentFragment());
+      // if history empty show hint
+      if(history.length === 0){ historyEl.innerHTML = '<div style="color:var(--muted);padding:8px">কোন হিস্টরি নেই — গণনা শুরু করো।</div>' }
+    }
+
+    function escapeHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    // Memory functions
+    function mAdd(){ const v = parseFloat(resultEl.textContent) || 0; memory += v; localStorage.setItem('uniqueCalc_memory', memory); }
+    function mSub(){ const v = parseFloat(resultEl.textContent) || 0; memory -= v; localStorage.setItem('uniqueCalc_memory', memory); }
+    function mRecall(){ setExpr(String(memory)); resultEl.textContent = memory; }
+    function mClear(){ memory = 0; localStorage.setItem('uniqueCalc_memory', memory); }
+
+    // -----------------------
+    // theme & misc
+    // -----------------------
+    function toggleTheme(){ theme = (theme+1)%3; if(theme===0){ document.documentElement.style.setProperty('--accent','#7c3aed'); document.documentElement.style.setProperty('--accent-2','#06b6d4'); } else if(theme===1){ document.documentElement.style.setProperty('--accent','#ef4444'); document.documentElement.style.setProperty('--accent-2','#f59e0b'); } else { document.documentElement.style.setProperty('--accent','#10b981'); document.documentElement.style.setProperty('--accent-2','#06b6d4'); } }
+
+    // -----------------------
+    // Utilities & events
+    // -----------------------
+    document.getElementById('themeBtn').addEventListener('click', ()=>{ toggleTheme(); });
+    document.getElementById('clearAll').addEventListener('click', ()=>{ setExpr(''); resultEl.textContent='0'; });
+    document.getElementById('undoBtn').addEventListener('click', ()=>{ setExpr(expression.slice(0,-1)); });
+    document.getElementById('evalBtn').addEventListener('click', ()=> evaluateExpression());
+    document.getElementById('copyRes').addEventListener('click', ()=>{ navigator.clipboard?.writeText(resultEl.textContent || '') });
+    document.getElementById('mAdd').addEventListener('click', mAdd);
+    document.getElementById('mSub').addEventListener('click', mSub);
+    document.getElementById('mRecall').addEventListener('click', mRecall);
+    document.getElementById('mClear').addEventListener('click', mClear);
+
+    document.getElementById('downloadPNG').addEventListener('click', ()=>{
+      // render a simple image of current display
+      const w=800,h=400;
+      const cnv = document.createElement('canvas'); cnv.width=w; cnv.height=h; const c=cnv.getContext('2d');
+      c.fillStyle='#071124'; c.fillRect(0,0,w,h);
+      c.fillStyle='#e6eef8'; c.font='20px Inter, sans-serif'; c.fillText('Expression: '+(expression||'0'),20,80);
+      c.font='36px Inter, sans-serif'; c.fillText('Result: '+(resultEl.textContent||'0'),20,160);
+      const a=document.createElement('a'); a.href=cnv.toDataURL('image/png'); a.download='calc_result.png'; a.click();
+    });
+
+    quickInput.addEventListener('keydown', (e)=>{ if(e.key === 'Enter'){ setExpr(quickInput.value); evaluateExpression(); quickInput.value=''; } });
+
+    modeSel.addEventListener('change', renderKeys);
+
+    // keyboard support
+    window.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){ evaluateExpression(); }
+      if(e.key === 'Backspace'){ setExpr(expression.slice(0,-1)); }
+      if(/^[0-9+\-*/().^]$/.test(e.key)){ setExpr(expression + e.key); }
+    });
+
+    // init
+    memory = parseFloat(localStorage.getItem('uniqueCalc_memory') || '0');
+    renderKeys(); renderHistory();
+
+    // small UX: persist expression across reload
+    window.addEventListener('beforeunload', ()=> localStorage.setItem('uniqueCalc_pending', expression));
+    const pending = localStorage.getItem('uniqueCalc_pending'); if(pending) setExpr(pending);
+
+  </script></body>
+</html>
